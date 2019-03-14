@@ -1,0 +1,262 @@
+<template>
+  <div class="page-container">
+    <div class="search_div">
+      <el-row type="flex" align="middle" style="margin-top: 10px;height: 50px">
+        <el-col :span="2" style="text-align: center">
+          <span>字典名：</span>
+        </el-col>
+        <el-col :span="3">
+          <el-input v-model="filters.name" size="mini"></el-input>
+        </el-col>
+        <el-col :span="4">
+          <kt-button icon="fa fa-search" :label="$t('action.search')" perms="sys:dict:view" type="danger" @click="findTreeData(null)"/>
+          <el-button type="warning" icon="el-icon-delete" size="mini" @click="clearFilter">清空</el-button>
+        </el-col>
+      </el-row>
+    </div>
+    <!--表格树内容栏-->
+    <div class="table_div">
+      <el-row type="flex" align="middle" style="height: 50px">
+        <el-col :span="6" style="text-align: left;margin-left: 20px">
+          <kt-button icon="fa fa-plus" :label="$t('action.add')" perms="sys:dict:add" type="danger" @click="handleAdd" />
+          <el-button icon="fa fa-refresh" @click="findTreeData(null)"  size="mini">刷新</el-button>
+        </el-col>
+      </el-row>
+      <el-table :data="tableTreeDdata" stripe size="mini" style="width: 97%;margin: 0 auto;"
+                :header-cell-style="headerCellStyle"
+                :cell-style="rowstyle"
+                :row-class-name="rowClass"
+                v-loading="loading" element-loading-text="$t('action.loading')">
+        <table-tree-column
+          prop="name" header-align="center" treeKey="id" width="150" label="名称">
+        </table-tree-column>
+        <el-table-column
+          prop="code" header-align="center" align="center" width="200" label="标识">
+        </el-table-column>
+        <el-table-column
+          prop="value" header-align="center" align="center" width="150" label="数值">
+        </el-table-column>
+        <el-table-column
+          prop="parentName" header-align="center" align="center" width="200" label="上级字典">
+        </el-table-column>
+        <el-table-column
+          prop="description" header-align="center" align="center" width="180" label="描述">
+        </el-table-column>
+        <el-table-column
+          prop="status" header-align="center" align="center" width="150" label="状态">
+        </el-table-column>
+        <el-table-column
+          fixed="right" header-align="center" align="center" width="185" :label="$t('action.operation')">
+          <template slot-scope="scope">
+            <kt-button icon="fa fa-edit" :label="$t('action.edit')" perms="sys:dict:edit" @click="handleEdit(scope.row)"/>
+            <kt-button icon="fa fa-trash" :label="$t('action.delete')" perms="sys:dict:delete" type="danger" @click="handleDelete(scope.row)"/>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+    <!-- 新增修改界面 -->
+    <el-dialog :title="!dataForm.id ? '新增' : '修改'" width="40%" :visible.sync="dialogVisible" :close-on-click-modal="false">
+      <el-form :model="dataForm" :rules="dataRule" ref="dataForm" @keyup.enter.native="submitForm()"
+               label-width="80px" :size="size" style="text-align:left;">
+        <el-form-item label="上级字典" prop="parentName">
+          <popup-tree-input
+            :data="popupTreeData" :props="popupTreeProps" :prop="dataForm.parentName==null?'顶级菜单':dataForm.parentName"
+            :nodeKey="''+dataForm.parentId" :currentChangeHandle="handleTreeSelectChange">
+          </popup-tree-input>
+        </el-form-item>
+        <el-form-item label="标识" prop="code">
+          <el-input v-model="dataForm.code" placeholder="标识"></el-input>
+        </el-form-item>
+        <el-form-item label="名称" prop="name">
+          <el-input v-model="dataForm.name" placeholder="名称"></el-input>
+        </el-form-item>
+        <el-form-item label="数值" prop="value">
+          <el-input v-model="dataForm.value" placeholder="数值"></el-input>
+        </el-form-item>
+        <el-form-item v-if="dataForm.type !== 2" label="序号" prop="sort">
+          <el-input-number v-model="dataForm.sort" controls-position="right" :min="0"></el-input-number>
+        </el-form-item>
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button :size="size"  @click="dialogVisible = false">{{$t('action.cancel')}}</el-button>
+        <el-button :size="size"  type="danger" @click="submitForm()">{{$t('action.comfirm')}}</el-button>
+      </span>
+    </el-dialog>
+  </div>
+</template>
+
+<script>
+  import KtButton from "@/views/Core/KtButton"
+  import TableTreeColumn from '@/views/Core/TableTreeColumn'
+  import PopupTreeInput from "@/components/PopupTreeInput"
+  import FaIconTooltip from "@/components/FaIconTooltip"
+  import { format } from "@/utils/datetime"
+  export default {
+    components:{
+      PopupTreeInput,
+      KtButton,
+      TableTreeColumn,
+      FaIconTooltip
+    },
+    data() {
+      return {
+        size: 'small',
+        loading: false,
+        filters: {
+          name: ''
+        },
+        tableTreeDdata: [],
+        dialogVisible: false,
+        dataForm: {
+          id: 0,
+          code: '',
+          name: '',
+          value: '',
+          status: '',
+          parentId: 0,
+          parentName: '',
+          sort: 0
+        },
+        dataRule: {
+          code: [
+            { required: true, message: '标识不能为空', trigger: 'blur' }
+          ],
+          name: [
+            { required: true, message: '名称不能为空', trigger: 'blur' }
+          ],
+          value: [
+            { required: true, message: '数值不能为空', trigger: 'blur' }
+          ]
+        },
+        popupTreeData: [],
+        popupTreeProps: {
+          label: 'name',
+          children: 'children'
+        }
+      }
+    },
+    methods: {
+      headerCellStyle({row, rowIndex}){
+        return 'background-color: #F8F9FD;color: #636364;font-weight: bold;text-align:center;'
+      },
+      rowstyle({row,rowIndex}){
+        return 'text-align:center;'
+      },
+      rowClass({row,rowIndex}){
+        return 'rowClass'
+      },
+      clearFilter:function () {
+        this.filters.name=''
+      },
+      // 获取数据
+      findTreeData: function () {
+        this.loading = true
+        this.$api.dict.findTree().then((res) => {
+          this.tableTreeDdata = res.data
+          this.popupTreeData = this.getParentTree(res.data)
+          this.loading = false
+        })
+      },
+      // 获取上级机构树
+      getParentTree: function (tableTreeDdata) {
+        let parent = {
+          parentId: 0,
+          name: '顶级菜单',
+          children: tableTreeDdata
+        }
+        return [parent]
+      },
+      // 显示新增界面
+      handleAdd: function () {
+        this.dialogVisible = true
+        this.dataForm = {
+          id: 0,
+          code: '',
+          name: '',
+          value: '',
+          status: '',
+          parentId: 0,
+          parentName: '',
+          sort: 0
+        }
+      },
+      // 显示编辑界面
+      handleEdit: function (row) {
+        this.dialogVisible = true
+        Object.assign(this.dataForm, row);
+      },
+      // 删除
+      handleDelete (row) {
+        this.$confirm('确认删除选中记录吗？', '提示', {
+          type: 'warning'
+        }).then(() => {
+          let params = this.getDeleteIds([], row)
+          this.$api.dict.batchDelete(params).then( res => {
+            this.findTreeData()
+            this.$message({message: '删除成功', type: 'success'})
+          })
+        })
+      },
+      // 获取删除的包含子机构的id列表
+      getDeleteIds (ids, row) {
+        ids.push({id:row.id})
+        if(row.children != null) {
+          for(let i=0, len=row.children.length; i<len; i++) {
+            this.getDeleteIds(ids, row.children[i])
+          }
+        }
+        return ids
+      },
+      // 机构树选中
+      handleTreeSelectChange (data, node) {
+        this.dataForm.parentId = data.id
+        this.dataForm.parentName = data.name
+      },
+      // 表单提交
+      submitForm () {
+        this.$refs['dataForm'].validate((valid) => {
+          if (valid) {
+            this.$confirm('确认提交吗？', '提示', {}).then(() => {
+              this.editLoading = true
+              let params = Object.assign({}, this.dataForm)
+              this.$api.dict.save(params).then((res) => {
+                this.editLoading = false
+                if(res.code == 200) {
+                  this.$message({ message: '操作成功', type: 'success' })
+                  this.dialogVisible = false
+                  this.$refs['dataForm'].resetFields()
+                } else {
+                  this.$message({message: '操作失败, ' + res.msg, type: 'error'})
+                }
+                this.findTreeData()
+              })
+            })
+          }
+        })
+      },
+      // 时间格式化
+      dateFormat: function (row, column, cellValue, index){
+        return format(row[column.property])
+      }
+
+    },
+    mounted() {
+      this.findTreeData()
+    }
+  }
+</script>
+
+<style scoped>
+  .page-container{
+    width: 98%;
+    height: 780px;
+    margin: 10px auto;
+  }
+  .search_div{
+    background-color: white;
+  }
+  .table_div{
+    margin-top: 10px;
+    background-color: white;
+  }
+</style>

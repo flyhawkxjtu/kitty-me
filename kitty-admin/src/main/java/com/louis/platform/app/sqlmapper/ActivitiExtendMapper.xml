@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.louis.platform.app.dao.ActivitiExtendDAO">
+
+ 	
+ 	<resultMap id="TaskResultMap" type="org.activiti.engine.impl.persistence.entity.TaskEntity">
+	    <id column="ID_" jdbcType="VARCHAR" property="id" />
+	    <id column="REV_" jdbcType="INTEGER" property="revision" />
+	    <result column="PROC_DEF_ID_" jdbcType="VARCHAR" property="processDefinitionId" />
+	    <result column="TASK_DEF_KEY_" jdbcType="VARCHAR" property="taskDefinitionKey" />
+	    <result column="PROC_INST_ID_" jdbcType="VARCHAR" property="processInstanceId" />
+	    <result column="EXECUTION_ID_" jdbcType="VARCHAR" property="executionId" />
+	    <result column="NAME_" jdbcType="VARCHAR" property="name" />
+	    <result column="PARENT_TASK_ID_" jdbcType="VARCHAR" property="parentTaskId" />
+	    <result column="DESCRIPTION_" jdbcType="VARCHAR" property="description" />
+	    <result column="OWNER_" jdbcType="VARCHAR" property="owner" />
+	    <result column="ASSIGNEE_" jdbcType="VARCHAR" property="assignee" />
+	    <result column="DELEGATION_" jdbcType="VARCHAR" property="delegation" />
+	    <result column="PRIORITY_" jdbcType="INTEGER" property="priority" />
+	    <result column="CREATE_TIME_" jdbcType="TIMESTAMP" property="createTime" />
+	    <result column="DUE_DATE_" jdbcType="TIMESTAMP" property="dueDate" />
+	    <result column="CATEGORY_" jdbcType="VARCHAR" property="category" />
+	    <result column="SUSPENSION_STATE_" jdbcType="INTEGER" property="suspensionState" />
+	    <result column="TENANT_ID_" jdbcType="VARCHAR" property="tenantId" />
+	    <result column="FORM_KEY_" jdbcType="VARCHAR" property="formKey" />
+ 	</resultMap>
+ 	
+
+   
+    <select id="queryUserTask"  parameterType="Map" resultMap="TaskResultMap">
+		 select distinct RES.*
+			from ACT_RU_TASK RES
+				left join ACT_RU_IDENTITYLINK I on I.TASK_ID_ = RES.ID_
+				left join act_re_procdef pd ON RES.PROC_DEF_ID_  = pd.id_
+			where ( RES.ASSIGNEE_ = #{assignee}
+				or
+				( RES.ASSIGNEE_ is null
+				and I.TYPE_ = 'candidate'
+				and (I.USER_ID_ = #{assignee}
+					or I.GROUP_ID_ in (
+					select group_id_ from act_id_membership where user_id_= #{assignee}
+					))
+				))
+			order by RES.CREATE_TIME_ asc
+   </select>
+
+</mapper>
